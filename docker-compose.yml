@@ -1,0 +1,35 @@
+version: "3.9"
+
+networks:
+  tricity-network:
+    driver: bridge
+
+services:
+  backend:
+    build:
+      context: ./tricity-be
+      dockerfile: production.dockerfile
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    environment:
+      - PORT=${BACKEND_PORT}
+    env_file:
+      - .env
+    networks:
+      - tricity-network
+
+  frontend:
+    build:
+      context: ./tricity-fe
+      dockerfile: production.dockerfile
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    environment:
+      - PORT=${FRONTEND_PORT}
+      - APP_BACKEND_URL=http://backend:${BACKEND_PORT}
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    networks:
+      - tricity-network

@@ -1,0 +1,36 @@
+{
+  "name": "tricity-be",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "generate-key": "ts-node src/scripts/generate-signupkey.ts",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/passport": "^1.0.17",
+    "@types/passport-local": "^1.0.38",
+    "bcrypt": "^6.0.0",
+    "connect-redis": "^8.0.3",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "ioredis": "^5.6.1",
+    "mongoose": "^8.15.0",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "redis": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.2",
+    "@types/express-session": "^1.18.1",
+    "@types/node": "^22.15.18",
+    "typescript": "^5.8.3"
+  }
+}
