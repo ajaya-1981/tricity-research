@@ -5,6 +5,10 @@ export function isAuthenticated(
   res: Response,
   next: NextFunction
 ) {
+  console.log("isAuthenticated middleware");
+  console.log("req.user", req.user);
+  console.log("req.session", req.session);
+  console.log("req.isAuthenticated()", req.isAuthenticated());
   if (req.isAuthenticated()) {
     return next();
   }

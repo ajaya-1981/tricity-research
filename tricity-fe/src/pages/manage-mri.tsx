@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -16,48 +16,69 @@ import {
 import { DataGrid } from "@mui/x-data-grid";
 import { Delete, Edit, Add, UploadFile, Close } from "@mui/icons-material";
 import type { GridColDef } from "@mui/x-data-grid";
+import backendApi from "../utils/axios-instance";
+import { z } from "zod";
+
+const createDeviceMasterSchema = z.object({
+  section: z.string().min(1, "Section is required"),
+  deviceType: z.string().min(1, "Device Type is required"),
+  brand: z.string().min(1, "Brand is required"),
+  deviceModel: z.string().min(1, "Device Model is required"),
+  leadAccessories: z.string().min(1, "Lead/Accessories is required"),
+  mriCompatible: z.boolean(),
+  mriCondition: z.string().optional(),
+});
 
 interface DeviceData {
   id: number;
   section: string;
   deviceType: string;
   brand: string;
-  model: string;
+  deviceModel: string;
   leadAccessories: string;
   mriCompatible: boolean;
-  mriCondition: string;
+  mriCondition?: string;
 }
 
-const initialData: DeviceData[] = [
-  {
-    id: 1,
-    section: "ICU",
-    deviceType: "Pacemaker",
-    brand: "Medtronic",
-    model: "Model A",
-    leadAccessories: "Lead X",
-    mriCompatible: true,
-    mriCondition: "Conditional",
-  },
-];
+type ValidationErrors = Partial<Record<keyof Omit<DeviceData, "id">, string>>;
 
 const ManageDataPage: React.FC = () => {
-  const [data, setData] = useState<DeviceData[]>(initialData);
+  const [data, setData] = useState<DeviceData[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DeviceData | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
+    {}
+  );
+
+  const fetchDevices = async () => {
+    try {
+      const res = await backendApi.get("/api/device-master", {
+        params: { page: 1, limit: 100 },
+        withCredentials: true,
+      });
+      setData(res.data.data);
+    } catch (err) {
+      console.error("Failed to fetch devices", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
 
   const openModal = (item: DeviceData | null = null) => {
     setIsEditMode(!!item);
+    setValidationErrors({});
     setEditingItem(
       item || {
         id: 0,
         section: "",
         deviceType: "",
         brand: "",
-        model: "",
+        deviceModel: "",
         leadAccessories: "",
         mriCompatible: false,
         mriCondition: "",
@@ -66,38 +87,106 @@ const ManageDataPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!editingItem) return;
-    if (isEditMode) {
-      setData((prev) =>
-        prev.map((d) => (d.id === editingItem.id ? editingItem : d))
-      );
-    } else {
-      setData((prev) => [...prev, { ...editingItem, id: Date.now() }]);
+  const validate = (data: DeviceData) => {
+    const result = createDeviceMasterSchema.safeParse({
+      section: data.section,
+      deviceType: data.deviceType,
+      brand: data.brand,
+      deviceModel: data.deviceModel,
+      leadAccessories: data.leadAccessories,
+      mriCompatible: data.mriCompatible,
+      mriCondition: data.mriCondition,
+    });
+    if (result.success) return null;
+
+    const errors: ValidationErrors = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof ValidationErrors;
+      errors[key] = issue.message;
     }
-    setModalOpen(false);
-    setEditingItem(null);
+    return errors;
   };
 
-  const handleDelete = (id: number) => {
-    setData((prev) => prev.filter((item) => item.id !== id));
+  const handleSave = async () => {
+    if (!editingItem) return;
+
+    const errors = validate(editingItem);
+    if (errors) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    try {
+      if (isEditMode) {
+        await backendApi.put(
+          `/api/device-master/${editingItem.id}`,
+          editingItem,
+          {
+            withCredentials: true,
+          }
+        );
+      } else {
+        await backendApi.post("/api/device-master", editingItem, {
+          withCredentials: true,
+        });
+      }
+      fetchDevices();
+      setModalOpen(false);
+      setEditingItem(null);
+      setValidationErrors({});
+    } catch (err) {
+      console.error("Failed to save device", err);
+    }
   };
 
-  const handleBulkDelete = () => {
-    setData((prev) => prev.filter((item) => !selectedRows.includes(item.id)));
-    setSelectedRows([]);
+  const handleDelete = async (id: number) => {
+    try {
+      await backendApi.delete(`/api/device-master/${id}`, {
+        withCredentials: true,
+      });
+      fetchDevices();
+    } catch (err) {
+      console.error("Failed to delete device", err);
+    }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBulkDelete = async () => {
+    try {
+      await backendApi.delete("/api/device-master/bulk", {
+        data: { ids: selectedRows },
+        withCredentials: true,
+      });
+      fetchDevices();
+      setSelectedRows([]);
+    } catch (err) {
+      console.error("Failed to bulk delete", err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      await backendApi.post("/api/device-master/import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        withCredentials: true,
+      });
+      fetchDevices();
+      setImportModalOpen(false);
+    } catch (err) {
+      console.error("Failed to upload file", err);
+    }
   };
 
   const columns: GridColDef[] = [
     { field: "section", headerName: "Section", flex: 1 },
     { field: "deviceType", headerName: "Device Type", flex: 1 },
     { field: "brand", headerName: "Brand", flex: 1 },
-    { field: "model", headerName: "Model", flex: 1 },
+    { field: "deviceModel", headerName: "Device Model", flex: 1 },
     { field: "leadAccessories", headerName: "Lead/Accessories", flex: 1.5 },
     {
       field: "mriCompatible",
@@ -170,7 +259,7 @@ const ManageDataPage: React.FC = () => {
         checkboxSelection
         onRowSelectionModelChange={(selectionModel) => {
           setSelectedRows(
-            Array.from(selectionModel.ids).map((id) => Number(id))
+            Array.from(selectionModel.ids || []).map((id) => Number(id))
           );
         }}
         getRowId={(row) => row.id}
@@ -180,7 +269,6 @@ const ManageDataPage: React.FC = () => {
         }}
       />
 
-      {/* Add/Edit Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -199,6 +287,8 @@ const ManageDataPage: React.FC = () => {
                   (prev) => prev && { ...prev, section: e.target.value }
                 )
               }
+              error={!!validationErrors.section}
+              helperText={validationErrors.section}
             />
             <TextField
               label="Device Type"
@@ -209,6 +299,8 @@ const ManageDataPage: React.FC = () => {
                   (prev) => prev && { ...prev, deviceType: e.target.value }
                 )
               }
+              error={!!validationErrors.deviceType}
+              helperText={validationErrors.deviceType}
             />
             <TextField
               label="Brand"
@@ -219,16 +311,20 @@ const ManageDataPage: React.FC = () => {
                   (prev) => prev && { ...prev, brand: e.target.value }
                 )
               }
+              error={!!validationErrors.brand}
+              helperText={validationErrors.brand}
             />
             <TextField
-              label="Model"
+              label="Device Model"
               fullWidth
-              value={editingItem?.model || ""}
+              value={editingItem?.deviceModel || ""}
               onChange={(e) =>
                 setEditingItem(
-                  (prev) => prev && { ...prev, model: e.target.value }
+                  (prev) => prev && { ...prev, deviceModel: e.target.value }
                 )
               }
+              error={!!validationErrors.deviceModel}
+              helperText={validationErrors.deviceModel}
             />
             <TextField
               label="Lead/Accessories"
@@ -239,6 +335,8 @@ const ManageDataPage: React.FC = () => {
                   (prev) => prev && { ...prev, leadAccessories: e.target.value }
                 )
               }
+              error={!!validationErrors.leadAccessories}
+              helperText={validationErrors.leadAccessories}
             />
             <Stack direction="row" alignItems="center">
               <Checkbox
@@ -261,6 +359,8 @@ const ManageDataPage: React.FC = () => {
                   (prev) => prev && { ...prev, mriCondition: e.target.value }
                 )
               }
+              error={!!validationErrors.mriCondition}
+              helperText={validationErrors.mriCondition}
             />
           </Stack>
         </DialogContent>
@@ -272,15 +372,14 @@ const ManageDataPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Import Modal */}
       <Dialog
         open={importModalOpen}
         onClose={() => setImportModalOpen(false)}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
       >
         <DialogTitle>
-          Import Device Data
+          Import Excel File
           <IconButton
             onClick={() => setImportModalOpen(false)}
             sx={{ position: "absolute", right: 8, top: 8 }}
@@ -290,39 +389,18 @@ const ManageDataPage: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <DialogContentText mb={2}>
-            Drag and drop a CSV or Excel file below, or click the button to
-            upload.
+            Please upload an Excel file with the correct format to import device
+            data.
           </DialogContentText>
-
-          <Box
-            onDrop={(e) => {
-              e.preventDefault();
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFileUpload({ target: { files: [file] } } as any);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            sx={{
-              border: "2px dashed #aaa",
-              borderRadius: 2,
-              height: 200,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-              backgroundColor: "#fafafa",
-              "&:hover": { borderColor: "primary.main" },
-            }}
-          >
-            <Button variant="contained" component="label" sx={{ zIndex: 2 }}>
-              Upload CSV or Excel
-              <input
-                hidden
-                accept=".csv, .xlsx, .xls"
-                type="file"
-                onChange={handleFileUpload}
-              />
-            </Button>
-          </Box>
+          <Button variant="contained" component="label" fullWidth>
+            Upload File
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              hidden
+              onChange={handleFileUpload}
+            />
+          </Button>
         </DialogContent>
       </Dialog>
     </Box>

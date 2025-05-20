@@ -3,6 +3,7 @@ import session from "express-session";
 import passport from "./config/passport";
 import mongoose from "mongoose";
 import authRouter from "./router/auth";
+import deviceMasterRouter from "./router/device-master";
 import Redis from "ioredis";
 import { RedisStore } from "connect-redis";
 import cors from "cors";
@@ -40,6 +41,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use("/api/auth", authRouter);
+app.use("/api/device-master", deviceMasterRouter);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running at http://localhost:${PORT}`);
