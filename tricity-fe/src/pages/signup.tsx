@@ -124,6 +124,7 @@ const SignupPage: React.FC = () => {
       setSnackbarSeverity("success");
       setSnackbarMessage(response.data.message || "Signup successful!");
       setSnackbarOpen(true);
+      localStorage.setItem("returning_user", "1");
       setTimeout(() => navigate("/login"), 1500);
     } catch (error: any) {
       const message = error.response?.data?.message || "Something went wrong";

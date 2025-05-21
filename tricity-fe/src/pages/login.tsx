@@ -110,7 +110,7 @@ const LoginPage: React.FC = () => {
       setSnackbarSeverity("success");
       setSnackbarMessage(response.data.message || "Login successful!");
       setSnackbarOpen(true);
-
+      localStorage.setItem("returning_user", "1");
       setTimeout(() => navigate("/dashboard"), 1000);
     } catch (error) {
       const message = (error as any)?.response?.data?.message || "Login failed";

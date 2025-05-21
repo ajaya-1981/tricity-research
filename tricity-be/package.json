@@ -6,7 +6,8 @@
     "dev": "ts-node src/index.ts",
     "build": "tsc",
     "generate-key": "ts-node src/scripts/generate-signupkey.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "worker": "ts-node src/worker/process-file.ts"
   },
   "keywords": [],
   "license": "ISC",

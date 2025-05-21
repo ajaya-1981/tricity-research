@@ -111,9 +111,9 @@ router.get("/:id", isAuthenticated, getDeviceMasterById);
 // @ts-ignore
 router.put("/:id", isAuthenticated, updateDeviceMaster);
 // @ts-ignore
-router.delete("/:id", isAuthenticated, deleteDeviceMaster);
-// @ts-ignore
 router.delete("/bulk", isAuthenticated, bulkDeleteDeviceMasters);
+// @ts-ignore
+router.delete("/:id", isAuthenticated, deleteDeviceMaster);
 
 const upload = multer({ dest: "uploads/" });
 router.post(

@@ -1,4 +1,11 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { useEffect } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useNavigate,
+  Navigate,
+} from "react-router-dom";
 import SignupPage from "./pages/signup";
 import LoginPage from "./pages/login";
 import ForgotPassword from "./pages/forgot-password";
@@ -10,9 +17,9 @@ import DashboardLayout from "./components/layout/dashboard";
 import HelpPage from "./pages/help";
 import ManageDataPage from "./pages/manage-mri";
 import withAuthProtection from "./components/hoc/withAuthProtection";
-import React from "react";
+import HomeRedirect from "./components/home-redirect";
 
-export default function App() {
+function AppRoutes() {
   const protectedRoutes = [
     { path: "", component: MriPage },
     { path: "mri", component: MriPage },
@@ -24,25 +31,33 @@ export default function App() {
   ];
 
   return (
+    <Routes>
+      <Route path="/" element={<HomeRedirect />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/dashboard" element={<DashboardLayout />}>
+        {protectedRoutes.map(({ path, component }) => {
+          const Protected = withAuthProtection(component);
+          return (
+            <Route
+              key={path}
+              path={path}
+              element={React.createElement(Protected)}
+            />
+          );
+        })}
+      </Route>
+      {/* fallback route (optional) */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/dashboard" element={<DashboardLayout />}>
-          {protectedRoutes.map(({ path, component }) => {
-            const Protected = withAuthProtection(component);
-            return (
-              <Route
-                key={path}
-                path={path}
-                element={React.createElement(Protected)}
-              />
-            );
-          })}
-        </Route>
-        {/* other routes */}
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

@@ -58,6 +58,25 @@ services:
     networks:
       - tricity-network
 
+  worker:
+    build:
+      context: ./tricity-be
+      dockerfile: Dockerfile
+    command: npm run worker
+    volumes:
+      - ./tricity-be:/app
+    networks:
+      - tricity-network
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/tricity
+      - REDIS_URL=redis://redis:6379
+      - COOKIE_SECRET=${COOKIE_SECRET}
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - .env
+
 volumes:
   mongo-data:
 

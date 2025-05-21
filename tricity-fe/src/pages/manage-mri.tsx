@@ -12,9 +12,18 @@ import {
   Typography,
   Checkbox,
   DialogContentText,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { Delete, Edit, Add, UploadFile, Close } from "@mui/icons-material";
+import {
+  Delete,
+  Edit,
+  Add,
+  UploadFile,
+  Close,
+  Refresh,
+} from "@mui/icons-material";
 import type { GridColDef } from "@mui/x-data-grid";
 import backendApi from "../utils/axios-instance";
 import { z } from "zod";
@@ -47,14 +56,69 @@ const ManageDataPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DeviceData | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedRows, setSelectedRows] = useState<number[]>([]);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>(
     {}
   );
 
+  const [loading, setLoading] = useState(false);
+
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">(
+    "success"
+  );
+
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
+
+  const handleDownloadSampleCSV = () => {
+    const headers = [
+      "section",
+      "deviceType",
+      "brand",
+      "deviceModel",
+      "leadAccessories",
+      "mriCompatible",
+      "mriCondition",
+    ];
+
+    const sampleData = Array.from({ length: 10 }, (_, index) => ({
+      section: `Section ${index + 1}`,
+      deviceType: `Type ${index + 1}`,
+      brand: `Brand ${index + 1}`,
+      deviceModel: `Model ${index + 1}`,
+      leadAccessories: `Accessories ${index + 1}`,
+      mriCompatible: index % 2 === 0,
+      mriCondition: `Condition ${index + 1}`,
+    }));
+
+    const csvContent = [
+      headers.join(","), // header row
+      ...sampleData.map((row) =>
+        headers
+          .map((key) => {
+            const val = row[key as keyof typeof row];
+            return typeof val === "string" ? `"${val}"` : val;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "sample_device_data.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const fetchDevices = async () => {
     try {
+      setLoading(true);
       const res = await backendApi.get("/api/device-master", {
         params: { page: 1, limit: 100 },
         withCredentials: true,
@@ -62,6 +126,8 @@ const ManageDataPage: React.FC = () => {
       setData(res.data.data);
     } catch (err) {
       console.error("Failed to fetch devices", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,14 +218,22 @@ const ManageDataPage: React.FC = () => {
 
   const handleBulkDelete = async () => {
     try {
-      await backendApi.delete("/api/device-master/bulk", {
+      const res = await backendApi.delete("/api/device-master/bulk", {
         data: { ids: selectedRows },
         withCredentials: true,
       });
+
+      setSnackbarMessage(res.data.message || "Devices deleted successfully.");
+      setSnackbarSeverity("success");
+      setSnackbarOpen(true);
+
       fetchDevices();
       setSelectedRows([]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to bulk delete", err);
+      setSnackbarMessage("Failed to delete devices.");
+      setSnackbarSeverity("error");
+      setSnackbarOpen(true);
     }
   };
 
@@ -177,8 +251,14 @@ const ManageDataPage: React.FC = () => {
       });
       fetchDevices();
       setImportModalOpen(false);
+      setSnackbarMessage("File uploaded successfully");
+      setSnackbarSeverity("success");
+      setSnackbarOpen(true);
     } catch (err) {
       console.error("Failed to upload file", err);
+      setSnackbarMessage("Failed to upload file");
+      setSnackbarSeverity("error");
+      setSnackbarOpen(true);
     }
   };
 
@@ -228,6 +308,14 @@ const ManageDataPage: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<UploadFile />}
+            onClick={handleDownloadSampleCSV}
+          >
+            Download Sample CSV
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<UploadFile />}
             onClick={() => setImportModalOpen(true)}
           >
             Import Excel
@@ -249,6 +337,26 @@ const ManageDataPage: React.FC = () => {
           >
             Add Data
           </Button>
+
+          <IconButton
+            onClick={fetchDevices}
+            color="primary"
+            aria-label="reload data"
+            size="large"
+            sx={{
+              border: "1px solid",
+              borderColor: "primary.main",
+              borderRadius: "50%",
+            }}
+            title="Reload Data"
+            disabled={loading}
+          >
+            <Refresh
+              sx={{
+                animation: loading ? "spin 1s linear infinite" : "none",
+              }}
+            />
+          </IconButton>
         </Stack>
       </Stack>
 
@@ -258,9 +366,9 @@ const ManageDataPage: React.FC = () => {
         autoHeight
         checkboxSelection
         onRowSelectionModelChange={(selectionModel) => {
-          setSelectedRows(
-            Array.from(selectionModel.ids || []).map((id) => Number(id))
-          );
+          console.log("Selected rows:", selectionModel);
+          // @ts-ignore
+          setSelectedRows(Array.from(selectionModel.ids || []));
         }}
         getRowId={(row) => row.id}
         pageSizeOptions={[5, 10, 20]}
@@ -396,13 +504,28 @@ const ManageDataPage: React.FC = () => {
             Upload File
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.csv"
               hidden
               onChange={handleFileUpload}
             />
           </Button>
         </DialogContent>
       </Dialog>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbarSeverity}
+          variant="filled"
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
